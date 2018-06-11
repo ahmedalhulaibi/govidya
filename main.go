@@ -15,11 +15,15 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"net/http"
+	_ "net/http/pprof"
 
 	"gocv.io/x/gocv"
 )
@@ -59,6 +63,9 @@ func main() {
 	go imageBufferRoutine(killImgBufferChannel, killWriterSwapChannel, killImgWriterChannel, doneChannel, imgBufferChannel, webcam)
 	go imageWriterRoutine(killImgBufferChannel, killWriterSwapChannel, killImgWriterChannel, doneChannel, imgBufferChannel, writerSwapChannel, writer, window)
 	go writerSwapRoutine(killImgBufferChannel, killWriterSwapChannel, killImgWriterChannel, doneChannel, writerSwapChannel, saveFile, fps, cols, rows, writerSwapTicker)
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
 
 	fmt.Println("Press enter to stop recording")
 	reader := bufio.NewReader(os.Stdin)
