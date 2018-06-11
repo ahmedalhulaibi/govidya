@@ -45,7 +45,7 @@ func main() {
 		return
 	}
 
-	imgBufferChannel := make(chan *gocv.Mat, 200)
+	imgBufferChannel := make(chan *gocv.Mat, 1000)
 	writerSwapChannel := make(chan *gocv.VideoWriter)
 
 	writerSwapTicker := time.NewTicker(time.Duration(recordingTime) * time.Second)
@@ -56,93 +56,9 @@ func main() {
 
 	doneChannel := make(chan bool)
 
-	go func() {
-	ImageBufferLoop:
-		for {
-			select {
-			case <-killImgBufferChannel:
-				fmt.Println("Kill received ImageBufferLoop")
-				break ImageBufferLoop
-			default:
-				image, err := bufferImage(webcam)
-				if err != nil {
-					fmt.Println(err.Error())
-					killWriterSwapChannel <- true
-					killImgWriterChannel <- true
-					break ImageBufferLoop
-				} else {
-					imgBufferChannel <- image
-				}
-			}
-		}
-		fmt.Println("End of image buffer routine")
-		doneChannel <- true
-	}()
-
-	go func() {
-		var wg sync.WaitGroup
-	ImageWriterLoop:
-		for {
-			select {
-			case <-killImgWriterChannel:
-				fmt.Println("Kill received ImageWriterLoop")
-				writer.Close()
-				break ImageWriterLoop
-			case writerSwapSignal := <-writerSwapChannel:
-				fmt.Println("swapping writer")
-				var oldWriter *gocv.VideoWriter
-				oldWriter = writer
-				//fmt.Printf("oldWriter closed isOpened = %v\nClosing old writer", oldWriter.IsOpened())
-				err := oldWriter.Close()
-				if err != nil {
-					fmt.Println(err.Error())
-					killImgBufferChannel <- true
-					killWriterSwapChannel <- true
-					break ImageWriterLoop
-				}
-				writer = writerSwapSignal
-				//fmt.Println("writer swapped")
-				//fmt.Printf("new writer isOpened = %v\n", writer.IsOpened())
-			case image := <-imgBufferChannel:
-				window.IMShow(*image)
-				window.WaitKey(1)
-				wg.Add(1)
-				writeImage(writer, image, &wg)
-				wg.Wait()
-			}
-		}
-		fmt.Println("End of image writer routine")
-		doneChannel <- true
-	}()
-
-	go func() {
-	WriterSwapLoop:
-		for {
-			select {
-			case <-killWriterSwapChannel:
-				writerSwapTicker.Stop()
-				fmt.Println("Kill received WriterSwapLoop")
-				break WriterSwapLoop
-			case <-writerSwapTicker.C:
-				// fmt.Println("creating new writer")
-				newWriterPtr, err := newWriter(saveFile, fps, cols, rows)
-				fmt.Printf("saveFile: %v\tfps: %f\tcols: %d\trows: %d\n", saveFile, fps, cols, rows)
-				// //time.Sleep(time.Second)
-				if err != nil {
-					fmt.Println(err.Error())
-					killImgWriterChannel <- true
-					killImgBufferChannel <- true
-					doneChannel <- true
-					break WriterSwapLoop
-				} else {
-					fmt.Println("signal new writer")
-					writerSwapChannel <- newWriterPtr
-				}
-			}
-		}
-		fmt.Println("End of writer swap routine")
-		doneChannel <- true
-	}()
+	go imageBufferRoutine(killImgBufferChannel, killWriterSwapChannel, killImgWriterChannel, doneChannel, imgBufferChannel, webcam)
+	go imageWriterRoutine(killImgBufferChannel, killWriterSwapChannel, killImgWriterChannel, doneChannel, imgBufferChannel, writerSwapChannel, writer, window)
+	go writerSwapRoutine(killImgBufferChannel, killWriterSwapChannel, killImgWriterChannel, doneChannel, writerSwapChannel, saveFile, fps, cols, rows, writerSwapTicker)
 
 	fmt.Println("Press enter to stop recording")
 	reader := bufio.NewReader(os.Stdin)
@@ -152,15 +68,99 @@ func main() {
 	killImgBufferChannel <- true
 	killImgWriterChannel <- true
 
-	fmt.Println("Waiting for end")
-	fmt.Printf("Channel cap %v\n", cap(doneChannel))
-	fmt.Printf("Channel length %v\n", len(doneChannel))
+	fmt.Println("Kill channel sent")
 	<-doneChannel
-	fmt.Printf("Channel length %v\n", len(doneChannel))
 	<-doneChannel
-	fmt.Printf("Channel length %v\n", len(doneChannel))
 	<-doneChannel
 	fmt.Println("End of pgm")
+}
+
+func imageBufferRoutine(killImgBufferChannel chan bool, killWriterSwapChannel chan bool, killImgWriterChannel chan bool, doneChannel chan bool, imgBufferChannel chan *gocv.Mat, webcam *gocv.VideoCapture) {
+ImageBufferLoop:
+	for {
+		select {
+		case <-killImgBufferChannel:
+			fmt.Println("Kill received ImageBufferLoop")
+			break ImageBufferLoop
+		default:
+			image, err := bufferImage(webcam)
+			if err != nil {
+				fmt.Println(err.Error())
+				killWriterSwapChannel <- true
+				killImgWriterChannel <- true
+				break ImageBufferLoop
+			} else {
+				imgBufferChannel <- image
+			}
+		}
+	}
+	fmt.Println("End of image buffer routine")
+	doneChannel <- true
+}
+
+func imageWriterRoutine(killImgBufferChannel chan bool, killWriterSwapChannel chan bool, killImgWriterChannel chan bool, doneChannel chan bool, imgBufferChannel chan *gocv.Mat, writerSwapChannel chan *gocv.VideoWriter, writer *gocv.VideoWriter, window *gocv.Window) {
+	var wg sync.WaitGroup
+ImageWriterLoop:
+	for {
+		select {
+		case <-killImgWriterChannel:
+			fmt.Println("Kill received ImageWriterLoop")
+			writer.Close()
+			break ImageWriterLoop
+		case writerSwapSignal := <-writerSwapChannel:
+			fmt.Println("swapping writer")
+			var oldWriter *gocv.VideoWriter
+			oldWriter = writer
+			//fmt.Printf("oldWriter closed isOpened = %v\nClosing old writer", oldWriter.IsOpened())
+			err := oldWriter.Close()
+			if err != nil {
+				fmt.Println(err.Error())
+				killImgBufferChannel <- true
+				killWriterSwapChannel <- true
+				break ImageWriterLoop
+			}
+			writer = writerSwapSignal
+			//fmt.Println("writer swapped")
+			//fmt.Printf("new writer isOpened = %v\n", writer.IsOpened())
+		case image := <-imgBufferChannel:
+			window.IMShow(*image)
+			window.WaitKey(1)
+			wg.Add(1)
+			writeImage(writer, image, &wg)
+			wg.Wait()
+		}
+	}
+	fmt.Println("End of image writer routine")
+	doneChannel <- true
+}
+
+func writerSwapRoutine(killImgBufferChannel chan bool, killWriterSwapChannel chan bool, killImgWriterChannel chan bool, doneChannel chan bool, writerSwapChannel chan *gocv.VideoWriter, saveFile string, fps float64, cols int, rows int, writerSwapTicker *time.Ticker) {
+WriterSwapLoop:
+	for {
+		select {
+		case <-killWriterSwapChannel:
+			writerSwapTicker.Stop()
+			fmt.Println("Kill received WriterSwapLoop")
+			break WriterSwapLoop
+		case <-writerSwapTicker.C:
+			// fmt.Println("creating new writer")
+			newWriterPtr, err := newWriter(saveFile, fps, cols, rows)
+			fmt.Printf("saveFile: %v\tfps: %f\tcols: %d\trows: %d\n", saveFile, fps, cols, rows)
+			// //time.Sleep(time.Second)
+			if err != nil {
+				fmt.Println(err.Error())
+				killImgWriterChannel <- true
+				killImgBufferChannel <- true
+				doneChannel <- true
+				break WriterSwapLoop
+			} else {
+				fmt.Println("signal new writer")
+				writerSwapChannel <- newWriterPtr
+			}
+		}
+	}
+	fmt.Println("End of writer swap routine")
+	doneChannel <- true
 }
 
 func initialize(deviceID int, saveFile string, fps float64) (*gocv.VideoCapture, *gocv.VideoWriter, *gocv.Mat, int, int, error) {
@@ -215,7 +215,9 @@ func writeImage(writer *gocv.VideoWriter, img *gocv.Mat, wg *sync.WaitGroup) {
 
 func newWriter(saveFile string, fps float64, cols int, rows int) (*gocv.VideoWriter, error) {
 	//fmt.Println("newWriter Called")
-	filename := strings.Join([]string{time.Now().String(), saveFile}, "-")
+	t := time.Now()
+	timestamp := t.Format("2006-01-02T150405")
+	filename := strings.Join([]string{timestamp, saveFile}, "-")
 	writer, err := gocv.VideoWriterFile(filename, "MJPG", fps, cols, rows, true)
 	if err != nil {
 		//fmt.Printf("error opening video writer device: %v\n", saveFile)
