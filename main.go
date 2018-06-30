@@ -40,8 +40,8 @@ func main() {
 	fps, _ := strconv.ParseFloat(os.Args[4], 64)
 
 	webcam, writer, img, cols, rows, err := initialize(deviceID, saveFile, fps)
-	window := gocv.NewWindow("Hello")
-	defer window.Close()
+	//window := gocv.NewWindow("Hello")
+	//defer window.Close()
 	defer webcam.Close()
 	defer img.Close()
 	if err != nil {
@@ -61,7 +61,8 @@ func main() {
 	doneChannel := make(chan bool)
 
 	go imageBufferRoutine(killImgBufferChannel, killWriterSwapChannel, killImgWriterChannel, doneChannel, imgBufferChannel, webcam)
-	go imageWriterRoutine(killImgBufferChannel, killWriterSwapChannel, killImgWriterChannel, doneChannel, imgBufferChannel, writerSwapChannel, writer, window)
+	//go imageWriterRoutine(killImgBufferChannel, killWriterSwapChannel, killImgWriterChannel, doneChannel, imgBufferChannel, writerSwapChannel, writer, window)
+	go imageWriterRoutine(killImgBufferChannel, killWriterSwapChannel, killImgWriterChannel, doneChannel, imgBufferChannel, writerSwapChannel, writer)
 	go writerSwapRoutine(killImgBufferChannel, killWriterSwapChannel, killImgWriterChannel, doneChannel, writerSwapChannel, saveFile, fps, cols, rows, writerSwapTicker)
 	go func() {
 		log.Println(http.ListenAndServe("localhost:6060", nil))
@@ -105,7 +106,7 @@ ImageBufferLoop:
 	doneChannel <- true
 }
 
-func imageWriterRoutine(killImgBufferChannel chan bool, killWriterSwapChannel chan bool, killImgWriterChannel chan bool, doneChannel chan bool, imgBufferChannel chan *gocv.Mat, writerSwapChannel chan *gocv.VideoWriter, writer *gocv.VideoWriter, window *gocv.Window) {
+func imageWriterRoutine(killImgBufferChannel chan bool, killWriterSwapChannel chan bool, killImgWriterChannel chan bool, doneChannel chan bool, imgBufferChannel chan *gocv.Mat, writerSwapChannel chan *gocv.VideoWriter, writer *gocv.VideoWriter) {
 	var wg sync.WaitGroup
 ImageWriterLoop:
 	for {
@@ -130,8 +131,8 @@ ImageWriterLoop:
 			//fmt.Println("writer swapped")
 			//fmt.Printf("new writer isOpened = %v\n", writer.IsOpened())
 		case image := <-imgBufferChannel:
-			window.IMShow(*image)
-			window.WaitKey(1)
+			//window.IMShow(*image)
+			//window.WaitKey(1)
 			wg.Add(1)
 			writeImage(writer, image, &wg)
 			wg.Wait()
