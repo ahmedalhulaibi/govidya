@@ -67,6 +67,7 @@ func main() {
 	go imageWriterRoutine(killImgBufferChannel, killWriterSwapChannel, killImgWriterChannel, doneChannel, imgBufferChannel, writerSwapChannel, writer)
 	go writerSwapRoutine(killImgBufferChannel, killWriterSwapChannel, killImgWriterChannel, doneChannel, writerSwapChannel, saveFile, fps, cols, rows, writerSwapTicker)
 	if enablePprof {
+		fmt.Println("Pprof enabled")
 		go func() {
 			log.Println(http.ListenAndServe("localhost:6060", nil))
 		}()
