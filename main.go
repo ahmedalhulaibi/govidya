@@ -29,8 +29,8 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 6 {
-		fmt.Println("How to run:\n\tsavevideo [camera ID] [video file] [recording time seconds] [fps] [img buffer arr size]")
+	if len(os.Args) < 7 {
+		fmt.Println("How to run:\n\tsavevideo [camera ID] [video file] [recording time seconds] [fps] [img buffer arr size] [enable pprof (true or false)]")
 		return
 	}
 
@@ -39,6 +39,7 @@ func main() {
 	recordingTime, _ := strconv.Atoi(os.Args[3])
 	fps, _ := strconv.ParseFloat(os.Args[4], 64)
 	imgBufferChannelSize, _ := strconv.Atoi(os.Args[5])
+	enablePprof, _ := strconv.ParseBool(os.Args[6])
 
 	webcam, writer, img, cols, rows, err := initialize(deviceID, saveFile, fps)
 	//window := gocv.NewWindow("Hello")
@@ -65,9 +66,11 @@ func main() {
 	//go imageWriterRoutine(killImgBufferChannel, killWriterSwapChannel, killImgWriterChannel, doneChannel, imgBufferChannel, writerSwapChannel, writer, window)
 	go imageWriterRoutine(killImgBufferChannel, killWriterSwapChannel, killImgWriterChannel, doneChannel, imgBufferChannel, writerSwapChannel, writer)
 	go writerSwapRoutine(killImgBufferChannel, killWriterSwapChannel, killImgWriterChannel, doneChannel, writerSwapChannel, saveFile, fps, cols, rows, writerSwapTicker)
-	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil))
-	}()
+	if enablePprof {
+		go func() {
+			log.Println(http.ListenAndServe("localhost:6060", nil))
+		}()
+	}
 
 	fmt.Println("Press enter to stop recording")
 	reader := bufio.NewReader(os.Stdin)
