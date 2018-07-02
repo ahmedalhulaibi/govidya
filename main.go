@@ -29,8 +29,8 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 5 {
-		fmt.Println("How to run:\n\tsavevideo [camera ID] [video file] [recording time seconds] [fps]")
+	if len(os.Args) < 6 {
+		fmt.Println("How to run:\n\tsavevideo [camera ID] [video file] [recording time seconds] [fps] [img buffer arr size]")
 		return
 	}
 
@@ -38,6 +38,7 @@ func main() {
 	saveFile := os.Args[2]
 	recordingTime, _ := strconv.Atoi(os.Args[3])
 	fps, _ := strconv.ParseFloat(os.Args[4], 64)
+	imgBufferChannelSize, _ := strconv.Atoi(os.Args[5])
 
 	webcam, writer, img, cols, rows, err := initialize(deviceID, saveFile, fps)
 	//window := gocv.NewWindow("Hello")
@@ -49,7 +50,7 @@ func main() {
 		return
 	}
 
-	imgBufferChannel := make(chan *gocv.Mat, 1000)
+	imgBufferChannel := make(chan *gocv.Mat, imgBufferChannelSize)
 	writerSwapChannel := make(chan *gocv.VideoWriter)
 
 	writerSwapTicker := time.NewTicker(time.Duration(recordingTime) * time.Second)
