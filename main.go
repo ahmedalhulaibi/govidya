@@ -44,7 +44,7 @@ func main() {
 	//window := gocv.NewWindow("Hello")
 	//defer window.Close()
 	defer webcam.Close()
-	defer img.Close()
+	img.Close()
 	if err != nil {
 		fmt.Println(err.Error())
 		return
@@ -219,6 +219,7 @@ func writeImage(writer *gocv.VideoWriter, img *gocv.Mat, wg *sync.WaitGroup) {
 	} else {
 		//fmt.Println("Writer is closed!")
 	}
+	img.Close()
 	wg.Done()
 }
 
